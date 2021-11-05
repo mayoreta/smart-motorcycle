@@ -3,14 +3,13 @@
 #include <Adafruit_PN532.h>
 #include <Adafruit_Fingerprint.h>
 #include <SoftwareSerial.h>
-#include <avr/wdt.h>
 
 #define PN532_IRQ (2)
 #define PN532_RESET (3)
 #define pinPower (6)
-#define pinStarter (7)
-#define pinAlarm (8)
-#define pinSelenoid (9)
+#define pinSelenoid (7)
+#define pinStarter (8)
+#define pinAlarm (9)
 #define pinAntiTheft (10)
 
 SoftwareSerial fingerSerial(5, 4);
@@ -34,21 +33,16 @@ unsigned long previousAlarmMillis = 0;
 unsigned long previousMillis = 0;
 
 void setup() {
-  wdt_disable();
   fingerSerial.begin(9600);
   Serial.begin(115200);
   while (!Serial) delay(10); // for Leonardo/Micro/Zero
   while (!fingerSerial) delay(10);  // for Yun/Leo/Micro/Zero/...
-
-  delay(2000);
 
   state = EEPROM.read(1);
 
   initiatePin();
   initiateNfc();
   initiateFingerprint();
-
-  wdt_enable(WDTO_4S);
 }
 
 void loop() {
@@ -60,9 +54,7 @@ void loop() {
     break;
     case 1:
       id = finger.templateCount + 1;
-      wdt_disable();
       while(!enrollFingerprint());
-      wdt_enable(WDTO_4S);
       stateFingerprint = 0;
     break;
     case 2:
@@ -77,11 +69,13 @@ void loop() {
     break;
   }
 
-  if(!digitalRead(pinAntiTheft) && !state && !stateAlarm) {
-    previousAlarmMillis = millis();
-    stateAlarm = 1;
-    logicState();
-  }
+  Serial.print("Pin antitheft ");
+  Serial.println(digitalRead(pinAntiTheft));
+//  if(!digitalRead(pinAntiTheft) && !state && !stateAlarm) {
+//    previousAlarmMillis = millis();
+//    stateAlarm = 1;
+//    logicState();
+//  }
 
   if (millis() - previousAlarmMillis >= 60000 && stateAlarm == 1) {
     stateAlarm = 0;
@@ -91,8 +85,6 @@ void loop() {
   if (millis() - previousMillis >= 10000 && state == 1) {
     state = 2;
   }
-
-  wdt_reset();
 }
 
 void initiatePin() {
@@ -100,7 +92,7 @@ void initiatePin() {
   pinMode(pinStarter, OUTPUT);
   pinMode(pinAlarm, OUTPUT);
   pinMode(pinSelenoid, OUTPUT);
-  pinMode(pinAntiTheft, INPUT_PULLUP);
+  pinMode(pinAntiTheft, INPUT);
 
   digitalWrite(pinPower, EEPROM.read(pinPower));
   digitalWrite(pinSelenoid, EEPROM.read(pinSelenoid));
@@ -342,21 +334,25 @@ void logicState() {
         digitalWrite(pinAlarm, HIGH);
       } else {
         previousMillis = millis();
-        finger.LEDcontrol(FINGERPRINT_LED_BREATHING, 100, FINGERPRINT_LED_BLUE, 3);
+        finger.LEDcontrol(FINGERPRINT_LED_BREATHING, 100, FINGERPRINT_LED_BLUE);
         digitalWrite(pinPower, LOW);
         digitalWrite(pinSelenoid, LOW);
         EEPROM.write(pinPower, 0);
         EEPROM.write(pinSelenoid, 0);
+        delay(2000);
+        finger.LEDcontrol(FINGERPRINT_LED_BREATHING, 200, FINGERPRINT_LED_RED);
       }
     break;
     case 2:
-      finger.LEDcontrol(FINGERPRINT_LED_BREATHING, 100, FINGERPRINT_LED_BLUE, 3);
+      finger.LEDcontrol(FINGERPRINT_LED_BREATHING, 100, FINGERPRINT_LED_BLUE);
       digitalWrite(pinStarter, LOW);
-      delay(1500);
+      delay(1200);
       digitalWrite(pinStarter, HIGH);
+      delay(2000);
+      finger.LEDcontrol(FINGERPRINT_LED_BREATHING, 200, FINGERPRINT_LED_RED);
     break;
     case 3:
-      finger.LEDcontrol(FINGERPRINT_LED_BREATHING, 100, FINGERPRINT_LED_BLUE, 3);
+      finger.LEDcontrol(FINGERPRINT_LED_BREATHING, 100, FINGERPRINT_LED_BLUE, 2);
       digitalWrite(pinPower, HIGH);
       digitalWrite(pinSelenoid, HIGH);
       EEPROM.write(pinPower, 1);
